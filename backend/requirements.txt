@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+tortoise-orm
+pydantic
+asyncmy
+python-dotenv
+faker
