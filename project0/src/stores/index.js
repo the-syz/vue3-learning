@@ -24,10 +24,14 @@ export const useAllStore = defineStore('allData', () => {
   
   // 使用watch监听state的变化，进行持久化存储
   watch(state, (newObj) => {
-    // 如果变化后的state中的token不存在，代表用户退出，不需要持久化存储state了
-    if (!newObj.token) return
-    // 持久化存储state
+    // 持久化存储state，包括tags数据，无论token是否存在
+    // 这样即使退出登录，页面刷新时tags数据也不会丢失
     localStorage.setItem('store', JSON.stringify(newObj))
+    // 如果有token，也单独存储token和menuList，保持兼容性
+    if (newObj.token) {
+      localStorage.setItem('token', newObj.token)
+      localStorage.setItem('menuList', JSON.stringify(newObj.menuList))
+    }
   }, { deep: true }) // deep开启深度监听
 
   function selectMenu(val) {
@@ -58,34 +62,36 @@ export const useAllStore = defineStore('allData', () => {
   
   // 如果是刷新的时候执行的，则从localStorage中读取数据
   if(type === 'refresh'){
-    // 先尝试从localStorage直接读取token和menuList
-    const savedToken = localStorage.getItem('token');
-    const savedMenuList = localStorage.getItem('menuList');
-    
-    if(savedToken && savedMenuList){
+    // 优先从完整的store中读取数据，确保tags数据正确恢复
+    if(localStorage.getItem('store')){
       try {
-        // 读取并解析menuList
-        const menuList = JSON.parse(savedMenuList);
-        // 更新store状态
-        state.value.token = savedToken;
-        updateMenuList(menuList);
-      } catch (error) {
-        console.error('解析localStorage数据失败:', error);
-        return;
-      }
-    } else if(localStorage.getItem('store')){
-      try {
-        // 如果没有直接的token和menuList，尝试使用store
-        state.value = JSON.parse(localStorage.getItem('store'))
-        // routeList保存的函数，存储的时候不能解析，这里重新赋值[]
-        state.value.routerList = []
+        const storedState = JSON.parse(localStorage.getItem('store'))
+        // 确保storedState是一个对象
+        if (typeof storedState === 'object' && storedState !== null) {
+          // 深度合并，避免覆盖默认值
+          Object.assign(state.value, storedState)
+          // 单独处理routerList，因为它保存的是函数，存储时不能正确解析
+          state.value.routerList = []
+        }
       } catch (error) {
         console.error('解析localStorage中的store失败:', error);
-        localStorage.removeItem('store');
-        return;
+        // 尝试恢复单个数据项
+        try {
+          const savedToken = localStorage.getItem('token');
+          const savedMenuList = localStorage.getItem('menuList');
+          
+          if(savedToken) {
+            state.value.token = savedToken;
+          }
+          if(savedMenuList) {
+            const menuList = JSON.parse(savedMenuList);
+            updateMenuList(menuList);
+          }
+        } catch (innerError) {
+          console.error('解析localStorage中的单个数据失败:', innerError);
+          localStorage.removeItem('store');
+        }
       }
-    }else{
-      return
     }
   }
   

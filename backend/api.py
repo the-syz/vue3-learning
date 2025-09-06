@@ -14,6 +14,7 @@ class UserCreate(BaseModel):
     age: int
     birth: str
     sex: int
+    salesperson_id: Optional[int] = None
 
 
 class UserUpdate(BaseModel):
@@ -22,6 +23,7 @@ class UserUpdate(BaseModel):
     age: Optional[int] = None
     birth: Optional[str] = None
     sex: Optional[int] = None
+    salesperson_id: Optional[int] = None
 
 
 class LoginData(BaseModel):
@@ -94,7 +96,8 @@ async def get_chart_data():
 # User相关API
 @router.get("/user/getUserData", response_model=Dict[str, Any])
 async def get_user_data(name: Optional[str] = None, page: int = 1, limit: int = 10):
-    query = User.all()
+    # 使用select_related加载关联的salesperson数据
+    query = User.all().select_related("salesperson")
     if name:
         query = query.filter(name__contains=name)
     
@@ -107,7 +110,9 @@ async def get_user_data(name: Optional[str] = None, page: int = 1, limit: int = 
         "addr": u.addr,
         "age": u.age,
         "birth": str(u.birth),
-        "sex": u.sex
+        "sex": u.sex,
+        "salesperson_id": u.salesperson.id if u.salesperson else None,
+        "salesperson_name": u.salesperson.username if u.salesperson else ""
     } for u in users]
     
     return {"code": 200, "data": {"list": user_list, "count": total_count}}
@@ -125,13 +130,24 @@ async def delete_user(id: str):
 
 @router.post("/user/addUser", response_model=Dict[str, Any])
 async def add_user(user_data: UserCreate):
-    user = await User.create(
-        name=user_data.name,
-        addr=user_data.addr,
-        age=user_data.age,
-        birth=user_data.birth,
-        sex=user_data.sex
-    )
+    # 准备创建用户的数据
+    create_data = {
+        "name": user_data.name,
+        "addr": user_data.addr,
+        "age": user_data.age,
+        "birth": user_data.birth,
+        "sex": user_data.sex
+    }
+    
+    # 如果提供了salesperson_id，查找对应的Account对象
+    if user_data.salesperson_id is not None:
+        try:
+            salesperson = await Account.get(id=user_data.salesperson_id)
+            create_data["salesperson"] = salesperson
+        except Account.DoesNotExist:
+            raise HTTPException(status_code=400, detail={"code": -999, "message": "指定的负责人不存在"})
+    
+    user = await User.create(**create_data)
     return {"code": 200, "message": "添加成功"}
 
 
@@ -140,14 +156,40 @@ async def edit_user(id: str, user_data: UserUpdate):
     try:
         user = await User.get(id=id)
         
-        update_data = user_data.dict(exclude_unset=True)
+        # 处理普通字段更新
+        update_data = user_data.dict(exclude_unset=True, exclude={"salesperson_id"})
         for key, value in update_data.items():
             setattr(user, key, value)
+        
+        # 特殊处理salesperson_id字段
+        if user_data.salesperson_id is not None:
+            try:
+                salesperson = await Account.get(id=user_data.salesperson_id)
+                user.salesperson = salesperson
+            except Account.DoesNotExist:
+                raise HTTPException(status_code=400, detail={"code": -999, "message": "指定的负责人不存在"})
+        elif "salesperson_id" in user_data.dict(exclude_unset=True):
+            # 如果明确设置salesperson_id为None，则移除关联
+            user.salesperson = None
         
         await user.save()
         return {"code": 200, "message": "编辑成功"}
     except Exception:
         raise HTTPException(status_code=400, detail={"code": -999, "message": "参数不正确"})
+
+
+@router.get("/user/getSalespeople", response_model=Dict[str, Any])
+async def get_salespeople():
+    # 获取所有account_type为"user"的账户
+    salespeople = await Account.filter(account_type="user")
+    
+    # 格式化数据，返回id和username
+    salespeople_list = [
+        {"id": sp.id, "username": sp.username}
+        for sp in salespeople
+    ]
+    
+    return {"code": 200, "data": salespeople_list}
 
 
 # Permission相关API

@@ -58,7 +58,12 @@ const tableLabel =reactive([
     {
         prop:'addr',
         label:'地址',
-        width:400
+        width:200
+    },
+    {
+        prop:'salesperson_name',
+        label:'负责人',
+        width:150
     },
 ])
 const formInline = reactive({
@@ -90,6 +95,7 @@ const handleDelete = async (row) => {
 }
 const action = ref('add')
 const dialogVisible = ref(false)
+const salespeopleList = ref([]) // 存储销售人员列表
 const formUser = reactive({
   id: '',
   name: '',
@@ -97,6 +103,7 @@ const formUser = reactive({
   age: '',
   birth: '',
   sex: '',
+  salesperson_id: '',
 })
 //表单校验规则
 const rules = reactive({
@@ -107,7 +114,8 @@ const rules = reactive({
   ],
   sex: [{ required: true, message: "性别是必选项", trigger: "change" }],
   birth: [{ required: true, message: "出生日期是必选项" }],
-  addr:[{ required: true, message: '地址是必填项' }]
+  addr:[{ required: true, message: '地址是必填项' }],
+  salesperson_id: [{ required: false, message: '请选择负责人', trigger: 'change' }]
 })
 const handleClose = () => {
   //获取并重置表单
@@ -167,18 +175,34 @@ const onSubmit = () => {
       })
     }
   })
+  dialogVisible.value = false
 }
 const handleEdit = (row) => { 
   action.value = 'edit'
   dialogVisible.value = true
   nextTick(() => { 
-    Object.assign(formUser, {...row,sex:''+row.sex})
+    Object.assign(formUser, {...row,sex:''+row.sex, salesperson_id: row.salesperson_id || ''})
   })
+}
+
+// 获取销售人员列表
+const getSalespeople = async() => {
+  try {
+    const data = await proxy.$api.getSalespeople()
+    salespeopleList.value = data || []
+  } catch (error) {
+    console.error('获取销售人员列表失败:', error)
+    ElMessage({ 
+      type: 'error', 
+      message: '获取销售人员列表失败' 
+    })
+  }
 }
 
 onMounted(() => {
   getUserData()
-  })
+  getSalespeople() // 加载销售人员列表
+})
 
 </script>
 
@@ -273,6 +297,20 @@ onMounted(() => {
           <el-input v-model="formUser.addr" placeholder="请输入地址" />
         </el-form-item>
       </el-row>
+      <el-row>
+        <el-col :span="12">
+          <el-form-item label="负责人" prop="salesperson_id">
+            <el-select v-model="formUser.salesperson_id" placeholder="请选择负责人" style="width: 200px;">
+              <el-option
+                v-for="item in salespeopleList"
+                :key="item.id"
+                :label="item.username"
+                :value="item.id"
+              ></el-option>
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
       <el-row style="justify-content: flex-end">
         <el-form-item>
           <el-button type="primary" @click="handleCancel">取消</el-button>
@@ -310,4 +348,5 @@ onMounted(() => {
 .select-clearn{
   display: flex;
 }
+
 </style>

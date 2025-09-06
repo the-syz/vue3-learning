@@ -73,4 +73,11 @@ export default {
       mock: false
     })
     },
+    getSalespeople() {
+    return request({
+      url: '/user/getSalespeople',
+      method: 'get',
+      mock: false
+    })
+    },
 };
