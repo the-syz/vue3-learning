@@ -44,7 +44,8 @@ export default {
       }
     };
   },
-  getCountData: () => {
+  // 支付订单数据表格
+  getPaymentData: () => {
     return {
       code: 200,
       data: [
@@ -55,28 +56,46 @@ export default {
           color: "#2ec7c9",
         },
         {
+          name: "本月支付订单",
+          value: 1234,
+          icon: "SuccessFilled",
+          color: "#2ec7c9",
+        },
+      ],
+    };
+  },
+  
+  // 收藏订单数据表格
+  getCollectionData: () => {
+    return {
+      code: 200,
+      data: [
+        {
           name: "今日收藏订单",
           value: 210,
           icon: "StarFilled",
           color: "#ffb980",
         },
         {
-          name: "今日未支付订单",
-          value: 1234,
-          icon: "GoodsFilled",
-          color: "#5ab1ef",
-        },
-        {
-          name: "本月支付订单",
-          value: 1234,
-          icon: "SuccessFilled",
-          color: "#2ec7c9",
-        },
-        {
           name: "本月收藏订单",
           value: 210,
           icon: "StarFilled",
           color: "#ffb980",
+        },
+      ],
+    };
+  },
+  
+  // 未支付订单数据表格
+  getUnpaidData: () => {
+    return {
+      code: 200,
+      data: [
+        {
+          name: "今日未支付订单",
+          value: 1234,
+          icon: "GoodsFilled",
+          color: "#5ab1ef",
         },
         {
           name: "本月未支付订单",
@@ -87,10 +106,42 @@ export default {
       ],
     };
   },
+  
+  // 保留原有的getCountData用于向后兼容
+  getCountData: () => {
+    // 从三个独立表格获取数据并整合
+    const paymentData = this.getPaymentData().data;
+    const collectionData = this.getCollectionData().data;
+    const unpaidData = this.getUnpaidData().data;
+    
+    return {
+      code: 200,
+      data: [
+        ...paymentData,
+        ...collectionData,
+        ...unpaidData
+      ],
+    };
+  },
    getChartData: () => {
+    // 从三个独立表格获取数据
+    const paymentData = this.getPaymentData().data;
+    const collectionData = this.getCollectionData().data;
+    const unpaidData = this.getUnpaidData().data;
+    
+    // 整合这三个表格的数据
+    const countData = [
+      ...paymentData,
+      ...collectionData,
+      ...unpaidData
+    ];
+    
     return {
       code: 200,
       data: {
+        // 添加整合后的countData到返回结果中
+        countData: countData,
+        
         orderData: {
           date: [
             "2019-10-01",

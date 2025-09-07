@@ -97,10 +97,15 @@ const getCountData = async ()=>{
   }
 }
 const getChartData = async ()=>{
-  try {
-    const {orderData,userData,videoData} = await proxy.$api.getChartData()
-    //确保DOM渲染完成后再初始化图表
-    await nextTick()
+    try {
+      const {orderData,userData,videoData,countData: chartCountData} = await proxy.$api.getChartData()
+      //确保DOM渲染完成后再初始化图表
+      await nextTick()
+      
+      // 使用从getChartData中获取的countData
+      if (chartCountData) {
+        countData.value = chartCountData;
+      }
     
     // 第一个图表 - 订单数据折线图
     if (echartsRef.value) {
@@ -219,7 +224,7 @@ const getChartData = async ()=>{
 
 onMounted(async ()=>{
   getTableData()
-  getCountData()
+  // 不再单独调用getCountData，而是通过getChartData获取整合后的数据
   // 延迟调用图表初始化，确保DOM已渲染
   setTimeout(() => {
     getChartData()

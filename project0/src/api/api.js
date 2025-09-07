@@ -15,6 +15,30 @@ export default {
         mock:false,
     })
     },
+    // 获取支付订单数据表格
+    getPaymentData(){
+    return request({
+        url: '/home/getPaymentData', 
+        method:'get',
+        mock:false,
+    })
+    },
+    // 获取收藏订单数据表格
+    getCollectionData(){
+    return request({
+        url: '/home/getCollectionData', 
+        method:'get',
+        mock:false,
+    })
+    },
+    // 获取未支付订单数据表格
+    getUnpaidData(){
+    return request({
+        url: '/home/getUnpaidData', 
+        method:'get',
+        mock:false,
+    })
+    },
     getChartData(){
     return request({
         url: '/home/getChartData', 

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException, Depends
 from typing import Optional, Dict, Any
 from pydantic import BaseModel
-from database import User, Product, Menu, Account, CountData, ChartData
+from database import User, Product, Menu, Account, CountData, ChartData, OrderData, VideoData, WeekUserData
 import json
 
 # 创建API路由器
@@ -55,6 +55,78 @@ async def get_table_data():
     }
 
 
+@router.get("/home/getOrderData", response_model=Dict[str, Any])
+async def get_order_data():
+    # 从OrderData表查询数据
+    order_items = await OrderData.all()
+    
+    # 构建日期列表
+    dates = sorted(list(set([item.date for item in order_items])))
+    
+    # 构建产品名称列表
+    names = sorted(list(set([item.name for item in order_items])))
+    
+    # 构建数据结构
+    data = []
+    for date in dates:
+        day_data = {}
+        for name in names:
+            # 查找该日期和产品的订单数据
+            item = next((x for x in order_items if x.date == date and x.name == name), None)
+            day_data[name] = item.value if item else 0
+        data.append(day_data)
+    
+    # 构建返回结果
+    order_data = {
+        "date": dates,
+        "data": data
+    }
+    
+    return {
+        "code": 200,
+        "data": order_data
+    }
+
+
+@router.get("/home/getVideoData", response_model=Dict[str, Any])
+async def get_video_data():
+    # 从VideoData表查询数据
+    video_items = await VideoData.all()
+    
+    # 将数据库数据格式化为前端所需格式
+    video_data = []
+    for item in video_items:
+        video_data.append({
+            "name": item.name,
+            "value": item.value
+        })
+    
+    return {
+        "code": 200,
+        "data": video_data
+    }
+
+
+@router.get("/home/getWeekuserData", response_model=Dict[str, Any])
+async def get_weekuser_data():
+    # 从WeekUserData表查询数据
+    weekuser_items = await WeekUserData.all()
+    
+    # 将数据库数据格式化为前端所需格式
+    weekuser_data = []
+    for item in weekuser_items:
+        weekuser_data.append({
+            "date": item.date,
+            "new": item.new,
+            "active": item.active
+        })
+    
+    return {
+        "code": 200,
+        "data": weekuser_data
+    }
+
+
 @router.get("/home/getCountData", response_model=Dict[str, Any])
 async def get_count_data():
     # 从CountData表查询数据
@@ -78,15 +150,63 @@ async def get_count_data():
 
 @router.get("/home/getChartData", response_model=Dict[str, Any])
 async def get_chart_data():
-    # 从ChartData表查询数据
-    chart_items = await ChartData.all()
-    
     # 构建图表数据字典
     chart_data = {}
-    for item in chart_items:
-        chart_data[item.data_type] = json.loads(item.content)
     
-    # 确保返回的格式符合前端要求
+    # 获取并格式化订单数据
+    order_items = await OrderData.all()
+    dates = sorted(list(set([item.date for item in order_items])))
+    names = sorted(list(set([item.name for item in order_items])))
+    
+    data = []
+    for date in dates:
+        day_data = {}
+        for name in names:
+            item = next((x for x in order_items if x.date == date and x.name == name), None)
+            day_data[name] = item.value if item else 0
+        data.append(day_data)
+    
+    chart_data["orderData"] = {
+        "date": dates,
+        "data": data
+    }
+    
+    # 获取并格式化视频数据
+    video_items = await VideoData.all()
+    video_data = []
+    for item in video_items:
+        video_data.append({
+            "name": item.name,
+            "value": item.value
+        })
+    
+    chart_data["videoData"] = video_data
+    
+    # 获取并格式化周用户数据
+    weekuser_items = await WeekUserData.all()
+    weekuser_data = []
+    for item in weekuser_items:
+        weekuser_data.append({
+            "date": item.date,
+            "new": item.new,
+            "active": item.active
+        })
+    
+    chart_data["userData"] = weekuser_data
+    
+    # 从CountData表获取统计卡片数据
+    count_items = await CountData.all()
+    count_data = []
+    for item in count_items:
+        count_data.append({
+            "name": item.name,
+            "value": item.value,
+            "icon": item.icon,
+            "color": item.color
+        })
+    
+    chart_data["countData"] = count_data
+    
     return {
         "code": 200,
         "data": chart_data

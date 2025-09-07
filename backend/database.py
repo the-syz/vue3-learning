@@ -6,6 +6,7 @@ import os
 import json
 
 # 数据库模型定义
+
 def get_db_url() -> str:
     # 从环境变量获取数据库配置参数
     DB_USERNAME = os.getenv('DB_USERNAME', 'root')
@@ -17,6 +18,38 @@ def get_db_url() -> str:
     # 构建数据库连接字符串
     DATABASE_URL = f"mysql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     return DATABASE_URL
+
+
+# 订单数据模型 - 对应order_data表
+class OrderData(Model):
+    id = fields.IntField(pk=True, generated=True)
+    date = fields.CharField(max_length=20)  # 日期
+    name = fields.CharField(max_length=100)  # 产品名称
+    value = fields.IntField()  # 订单数量
+    
+    class Meta:
+        table = "order_data"
+
+
+# 视频数据模型 - 对应video_data表
+class VideoData(Model):
+    id = fields.IntField(pk=True, generated=True)
+    name = fields.CharField(max_length=100)  # 品牌名称
+    value = fields.IntField()  # 视频数量
+    
+    class Meta:
+        table = "video_data"
+
+
+# 周用户数据模型 - 对应week_user_data表
+class WeekUserData(Model):
+    id = fields.IntField(pk=True, generated=True)
+    date = fields.CharField(max_length=20)  # 星期几
+    new = fields.IntField()  # 新用户数
+    active = fields.IntField()  # 活跃用户数
+    
+    class Meta:
+        table = "week_user_data"
 
 
 class User(Model):
@@ -313,30 +346,36 @@ async def init_db():
         
         print("已初始化统计数据")
     
-    # 检查并初始化图表数据
-    chart_data_count = await ChartData.all().count()
-    if chart_data_count == 0:
-        # 从前端mock数据获取需要存储的图表数据
-        import json
+    # 初始化订单数据
+    order_data_count = await OrderData.all().count()
+    if order_data_count == 0:
+        # 从指定的数据创建订单数据
+        dates = [
+            "2019-10-01", "2019-10-02", "2019-10-03", "2019-10-04",
+            "2019-10-05", "2019-10-06", "2019-10-07"
+        ]
+        data = [
+            {"苹果": 3839, "小米": 1423, "华为": 4965, "oppo": 3334, "vivo": 2820, "一加": 4751},
+            {"苹果": 3560, "小米": 2099, "华为": 3192, "oppo": 4210, "vivo": 1283, "一加": 1613},
+            {"苹果": 1864, "小米": 4598, "华为": 4202, "oppo": 4377, "vivo": 4123, "一加": 4750},
+            {"苹果": 2634, "小米": 1458, "华为": 4155, "oppo": 2847, "vivo": 2551, "一加": 1733},
+            {"苹果": 3622, "小米": 3990, "华为": 2860, "oppo": 3870, "vivo": 1852, "一加": 1712},
+            {"苹果": 2004, "小米": 1864, "华为": 1395, "oppo": 1315, "vivo": 4051, "一加": 2293},
+            {"苹果": 3797, "小米": 3936, "华为": 3642, "oppo": 4408, "vivo": 3374, "一加": 3874}
+        ]
         
-        # 订单数据
-        order_data = {
-            "date": [
-                "2019-10-01", "2019-10-02", "2019-10-03", "2019-10-04",
-                "2019-10-05", "2019-10-06", "2019-10-07"
-            ],
-            "data": [
-                {"苹果": 3839, "小米": 1423, "华为": 4965, "oppo": 3334, "vivo": 2820, "一加": 4751},
-                {"苹果": 3560, "小米": 2099, "华为": 3192, "oppo": 4210, "vivo": 1283, "一加": 1613},
-                {"苹果": 1864, "小米": 4598, "华为": 4202, "oppo": 4377, "vivo": 4123, "一加": 4750},
-                {"苹果": 2634, "小米": 1458, "华为": 4155, "oppo": 2847, "vivo": 2551, "一加": 1733},
-                {"苹果": 3622, "小米": 3990, "华为": 2860, "oppo": 3870, "vivo": 1852, "一加": 1712},
-                {"苹果": 2004, "小米": 1864, "华为": 1395, "oppo": 1315, "vivo": 4051, "一加": 2293},
-                {"苹果": 3797, "小米": 3936, "华为": 3642, "oppo": 4408, "vivo": 3374, "一加": 3874}
-            ]
-        }
+        # 拆分数据并存储
+        for i, date in enumerate(dates):
+            day_data = data[i]
+            for name, value in day_data.items():
+                await OrderData.create(date=date, name=name, value=value)
         
-        # 视频数据
+        print("已初始化订单数据")
+    
+    # 初始化视频数据
+    video_data_count = await VideoData.all().count()
+    if video_data_count == 0:
+        # 创建视频数据
         video_data = [
             {"name": "小米", "value": 2999},
             {"name": "苹果", "value": 5999},
@@ -346,8 +385,16 @@ async def init_db():
             {"name": "三星", "value": 4500}
         ]
         
-        # 用户数据
-        user_data = [
+        for item in video_data:
+            await VideoData.create(**item)
+        
+        print("已初始化视频数据")
+    
+    # 初始化周用户数据
+    week_user_data_count = await WeekUserData.all().count()
+    if week_user_data_count == 0:
+        # 创建周用户数据
+        week_user_data = [
             {"date": "周一", "new": 5, "active": 200},
             {"date": "周二", "new": 10, "active": 500},
             {"date": "周三", "new": 12, "active": 550},
@@ -357,9 +404,13 @@ async def init_db():
             {"date": "周日", "new": 33, "active": 170}
         ]
         
-        # 存储图表数据
-        await ChartData.create(data_type="orderData", content=json.dumps(order_data))
-        await ChartData.create(data_type="videoData", content=json.dumps(video_data))
-        await ChartData.create(data_type="userData", content=json.dumps(user_data))
+        for item in week_user_data:
+            await WeekUserData.create(**item)
         
-        print("已初始化图表数据")
+        print("已初始化周用户数据")
+    
+    # 如果chart_data表存在，删除它
+    chart_data_count = await ChartData.all().count()
+    if chart_data_count > 0:
+        await ChartData.all().delete()
+        print("已删除chart_data表中的所有数据")
