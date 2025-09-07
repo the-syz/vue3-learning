@@ -145,37 +145,60 @@ const timeFormat = (time) => {
   }
   return year + '-' + add(month) + '-' + add(day)
 }
-const onSubmit = () => { 
+const onSubmit = async () => { 
   //校验表单
-  proxy.$refs.userForm.validate(async (valid) => {
-    if (valid) {
-        let res = null
-        // 确保birth始终是YYYY-MM-DD格式的字符串
-        if (formUser.birth instanceof Date) {
-          formUser.birth = timeFormat(formUser.birth)
-        } else if (!/^\d{4}-\d{2}-\d{2}$/.test(formUser.birth)) {
-          formUser.birth = timeFormat(formUser.birth)
-        }
-        if(action.value == 'add'){
-          res = await proxy.$api.addUser(formUser)
-        }else{
-          res = await proxy.$api.editUser(formUser)
-        }
-        if(res){
-          dialogVisible.value = false
-          proxy.$refs.userForm.resetFields()
-          getUserData()
-        }
-    } else {
-      // 校验不通过，提示用户
+  try {
+    await proxy.$refs.userForm.validate()
+    
+    // 确保birth始终是YYYY-MM-DD格式的字符串
+    if (formUser.birth instanceof Date) {
+      formUser.birth = timeFormat(formUser.birth)
+    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(formUser.birth)) {
+      formUser.birth = timeFormat(formUser.birth)
+    }
+    
+    if(action.value == 'add'){
+      await proxy.$api.addUser(formUser)
+      ElMessage({
+        showClose: true,
+        message: '新增成功',
+        type: 'success',
+      })
+    }else{
+      await proxy.$api.editUser(formUser)
+      ElMessage({
+        showClose: true,
+        message: '编辑成功',
+        type: 'success',
+      })
+    }
+    
+    // 无论API调用结果如何，都关闭对话框并重置表单
+    dialogVisible.value = false
+    proxy.$refs.userForm.resetFields()
+    // 重新获取用户数据以显示最新状态
+    getUserData()
+  } catch (error) {
+    // 处理表单校验失败的情况
+    if (error === false) {
       ElMessage({
         showClose: true,
         message: '请填写正确的信息',
         type: 'error',
       })
+    } else {
+      // 处理其他错误
+      console.error('提交失败:', error)
+      ElMessage({
+        showClose: true,
+        message: '操作失败，请重试',
+        type: 'error',
+      })
+      // 即使失败也关闭对话框并重置表单，避免用户卡在错误状态
+      dialogVisible.value = false
+      proxy.$refs.userForm.resetFields()
     }
-  })
-  dialogVisible.value = false
+  }
 }
 const handleEdit = (row) => { 
   action.value = 'edit'
