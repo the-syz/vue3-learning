@@ -1,6 +1,16 @@
-# FastAPI 后端项目
+# Vue 3 电商管理系统 - 后端
 
-这是一个基于 FastAPI 和 Tortoise ORM 的后端项目，为 Vue3 前端项目提供 API 服务。
+这是电商管理系统的后端部分，基于 FastAPI 和 Tortoise ORM 构建，为 Vue 3 前端项目提供 API 服务和数据支持。
+
+## 技术栈
+
+- **Web框架**: FastAPI
+- **ASGI服务器**: Uvicorn
+- **ORM**: Tortoise ORM
+- **数据验证**: Pydantic
+- **数据库**: MySQL (asyncmy驱动)
+- **环境管理**: python-dotenv
+- **数据生成**: Faker
 
 ## 项目结构
 
