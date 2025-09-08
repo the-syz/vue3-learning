@@ -104,4 +104,21 @@ export default {
       mock: false
     })
     },
+    // 获取实时价格数据
+    getRealTimePrice(name) {
+    return request({
+      url: `/mall/getRealTimePrice${name ? '?name=' + name : ''}`,
+      method: 'get',
+      mock: false
+    })
+    },
+    // 获取价格历史数据
+    getPriceHistory(params) {
+    return request({
+      url: '/mall/getPriceHistory',
+      method: 'get',
+      mock: false,
+      params: params
+    })
+    },
 };

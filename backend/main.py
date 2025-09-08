@@ -29,7 +29,7 @@ app.add_middleware(
 )
 
 # 导入数据库配置和API路由器
-from database import register_db, init_db
+from database import register_db, init_db, start_price_generation, stop_price_generation
 from api import router as api_router
 
 # 注册数据库（关闭自动创建表结构）
@@ -37,6 +37,17 @@ register_db(app)
 
 # 注册API路由器，添加/api前缀
 app.include_router(api_router, prefix="/api")
+
+# 添加应用启动和关闭事件处理器
+@app.on_event("startup")
+async def startup_event():
+    print("启动实时价格数据生成任务...")
+    await start_price_generation()
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("停止实时价格数据生成任务...")
+    await stop_price_generation()
 
 # 注意：数据库表结构和初始化数据已通过独立脚本init_database.py处理
 # 不再在应用启动时执行这些操作，以提高性能

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException, Depends
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel
-from database import User, Product, Menu, Account, CountData, ChartData, OrderData, VideoData, WeekUserData
+from database import User, Product, Menu, Account, CountData, ChartData, OrderData, VideoData, WeekUserData, RealTimePrice
 import json
+from datetime import datetime, timedelta
 
 # 创建API路由器
 router = APIRouter()
@@ -367,3 +368,105 @@ async def get_menu(login_data: LoginData):
             menu["path"] = "#"
     
     return {"code": 200, "data": {"menuList": menu_tree, "token": "fake-token-" + role, "message": "获取成功"}}
+
+# 商品页相关API - 实时价格数据接口
+@router.get("/mall/getRealTimePrice", response_model=Dict[str, Any])
+async def get_real_time_price(name: Optional[str] = None):
+    """获取实时价格数据"""
+    query = RealTimePrice.all()
+    
+    # 如果指定了品牌名称，只返回该品牌的数据
+    if name:
+        # 检查品牌是否存在
+        if name not in ["苹果", "小米", "华为", "oppo", "vivo", "一加"]:
+            raise HTTPException(status_code=400, detail={"code": -999, "message": "无效的品牌名称"})
+        
+        # 获取该品牌的最新价格
+        latest_price = await RealTimePrice.filter(name=name).order_by("-time").first()
+        
+        if not latest_price:
+            return {"code": 200, "data": {"name": name, "value": 0, "time": str(datetime.now())}}
+        
+        return {
+            "code": 200,
+            "data": {
+                "name": latest_price.name,
+                "value": latest_price.value,
+                "time": str(latest_price.time)
+            }
+        }
+    else:
+        # 返回所有品牌的最新价格
+        all_prices = []
+        for brand in ["苹果", "小米", "华为", "oppo", "vivo", "一加"]:
+            latest_price = await RealTimePrice.filter(name=brand).order_by("-time").first()
+            if latest_price:
+                all_prices.append({
+                    "name": latest_price.name,
+                    "value": latest_price.value,
+                    "time": str(latest_price.time)
+                })
+            else:
+                all_prices.append({
+                    "name": brand,
+                    "value": 0,
+                    "time": str(datetime.now())
+                })
+        
+        return {
+            "code": 200,
+            "data": all_prices
+        }
+
+@router.get("/mall/getPriceHistory", response_model=Dict[str, Any])
+async def get_price_history(
+    name: str,
+    limit: int = 100,
+    start_time: Optional[str] = None,
+    end_time: Optional[str] = None
+):
+    """获取指定品牌的价格历史数据"""
+    # 检查品牌是否存在
+    if name not in ["苹果", "小米", "华为", "oppo", "vivo", "一加"]:
+        raise HTTPException(status_code=400, detail={"code": -999, "message": "无效的品牌名称"})
+    
+    # 构建查询
+    query = RealTimePrice.filter(name=name).order_by("time")
+    
+    # 添加时间范围过滤（如果提供）
+    if start_time:
+        try:
+            start_datetime = datetime.strptime(start_time, "%Y-%m-%d %H:%M:%S")
+            query = query.filter(time__gte=start_datetime)
+        except ValueError:
+            raise HTTPException(status_code=400, detail={"code": -999, "message": "无效的开始时间格式，应为YYYY-MM-DD HH:MM:SS"})
+    
+    if end_time:
+        try:
+            end_datetime = datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
+            query = query.filter(time__lte=end_datetime)
+        except ValueError:
+            raise HTTPException(status_code=400, detail={"code": -999, "message": "无效的结束时间格式，应为YYYY-MM-DD HH:MM:SS"})
+    
+    # 限制返回的记录数量
+    if limit > 1000:
+        limit = 1000  # 最多返回1000条记录
+    
+    # 执行查询
+    history_data = await query.limit(limit)
+    
+    # 格式化结果
+    formatted_data = []
+    for item in history_data:
+        formatted_data.append({
+            "time": str(item.time),
+            "value": item.value
+        })
+    
+    return {
+        "code": 200,
+        "data": {
+            "name": name,
+            "history": formatted_data
+        }
+    }

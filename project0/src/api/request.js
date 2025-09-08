@@ -40,7 +40,10 @@ function request(options) {
     options.method = options.method || "get";
     // 关于参数的调整
     if(options.method.toLowerCase() === "get"){
-      options.params = options.data;
+      // 如果已经有params，就不要用data覆盖它
+      if (!options.params && options.data) {
+        options.params = options.data;
+      }
       // GET请求不需要data参数
       options.data = undefined;
     } else if(options.method.toLowerCase() === "delete"){

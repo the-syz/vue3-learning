@@ -12,7 +12,7 @@ import os
 load_dotenv()
 
 # 从database模块导入所需的组件
-from database import User, Product, ChartData, CountData, Menu, Account, OrderData, VideoData, WeekUserData, init_db
+from database import User, Product, ChartData, CountData, Menu, Account, OrderData, VideoData, WeekUserData, RealTimePrice, init_db
 
 async def initialize_database():
     """初始化数据库：创建连接、创建表结构、初始化数据"""

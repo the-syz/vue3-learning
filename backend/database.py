@@ -1,16 +1,20 @@
 from tortoise import fields
 from tortoise.models import Model
 from tortoise.contrib.fastapi import register_tortoise
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 import os
 import json
+import asyncio
+import random
+import time
+from datetime import datetime
 
 # 数据库模型定义
 
 def get_db_url() -> str:
     # 从环境变量获取数据库配置参数
     DB_USERNAME = os.getenv('DB_USERNAME', 'root')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', 'password')
+    DB_PASSWORD = os.getenv('DB_PASSWORD', '123456')  # 使用.env中的密码作为默认值
     DB_HOST = os.getenv('DB_HOST', 'localhost')
     DB_PORT = os.getenv('DB_PORT', '3306')
     DB_NAME = os.getenv('DB_NAME', 'vue3_project')
@@ -50,6 +54,147 @@ class WeekUserData(Model):
     
     class Meta:
         table = "week_user_data"
+
+# 实时价格数据模型 - 对应real_time_price表
+class RealTimePrice(Model):
+    id = fields.IntField(pk=True, generated=True)
+    name = fields.CharField(max_length=100)  # 品牌名称
+    time = fields.DatetimeField(auto_now_add=True)  # 时间戳
+    value = fields.FloatField()  # 价格值
+    
+    class Meta:
+        table = "real_time_price"
+        indexes = [
+            ("name", "time"),  # 在name和time字段上创建索引，提高查询效率
+        ]
+
+# 存储各品牌的基础价格，用于生成浮动价格
+_BASE_PRICES = {
+    "苹果": 5000.0,
+    "小米": 3000.0,
+    "华为": 4000.0,
+    "oppo": 2500.0,
+    "vivo": 2600.0,
+    "一加": 3500.0
+}
+
+# 价格浮动范围百分比
+_PRICE_FLUCTUATION_RANGE = 0.05  # 5%
+
+# 最大记录数
+MAX_RECORDS_PER_BRAND = 1000
+
+# 全局变量，用于存储当前价格
+_current_prices = _BASE_PRICES.copy()
+
+# 数据生成任务标志
+_data_generation_task: Optional[asyncio.Task] = None
+
+async def generate_real_time_price():
+    """持续生成实时价格数据"""
+    global _current_prices, _data_generation_task
+    
+    # 创建初始数据（每个品牌生成一些历史数据）
+    await init_initial_price_data()
+    
+    try:
+        while True:
+            # 为每个品牌生成新的价格数据
+            for brand, base_price in _BASE_PRICES.items():
+                # 生成随机浮动值（在基础价格的±5%范围内）
+                fluctuation = random.uniform(-_PRICE_FLUCTUATION_RANGE, _PRICE_FLUCTUATION_RANGE)
+                new_price = _current_prices[brand] * (1 + fluctuation)
+                
+                # 确保价格不会波动太大
+                max_price = base_price * (1 + _PRICE_FLUCTUATION_RANGE * 2)
+                min_price = base_price * (1 - _PRICE_FLUCTUATION_RANGE * 2)
+                new_price = max(min(new_price, max_price), min_price)
+                
+                # 更新当前价格
+                _current_prices[brand] = new_price
+                
+                # 创建新的价格记录
+                await RealTimePrice.create(
+                    name=brand,
+                    value=round(new_price, 2)
+                )
+                
+                # 清理旧数据，确保每个品牌不超过1000条记录
+                await cleanup_old_records(brand)
+            
+            # 等待一段时间后再次生成数据（每2-5秒生成一次）
+            await asyncio.sleep(random.uniform(2, 5))
+    except asyncio.CancelledError:
+        print("实时价格数据生成任务已取消")
+    except Exception as e:
+        print(f"实时价格数据生成任务出错: {e}")
+
+async def init_initial_price_data():
+    """初始化初始价格数据"""
+    # 检查是否已有数据
+    count = await RealTimePrice.all().count()
+    if count > 0:
+        # 如果已有数据，更新当前价格为最新价格
+        for brand in _BASE_PRICES.keys():
+            latest_price = await RealTimePrice.filter(name=brand).order_by('-time').first()
+            if latest_price:
+                _current_prices[brand] = latest_price.value
+        return
+    
+    # 为每个品牌生成一些历史数据
+    now = datetime.now()
+    for brand, base_price in _BASE_PRICES.items():
+        print(f"初始化{brand}的价格数据...")
+        # 生成50条历史数据，时间间隔为5秒
+        for i in range(50):
+            # 生成基于基础价格的随机价格
+            price = base_price * (1 + random.uniform(-0.1, 0.1))
+            # 计算历史时间戳
+            historical_time = now - datetime.timedelta(seconds=5*(50-i))
+            # 创建历史价格记录
+            await RealTimePrice.create(
+                name=brand,
+                value=round(price, 2),
+                time=historical_time
+            )
+        # 更新当前价格
+        _current_prices[brand] = base_price
+
+async def cleanup_old_records(brand: str):
+    """清理指定品牌的旧记录，确保不超过1000条"""
+    # 计算需要删除的记录数量
+    count = await RealTimePrice.filter(name=brand).count()
+    if count > MAX_RECORDS_PER_BRAND:
+        # 查询需要删除的记录
+        records_to_delete = await RealTimePrice.filter(name=brand).order_by('time').limit(count - MAX_RECORDS_PER_BRAND)
+        # 批量删除
+        for record in records_to_delete:
+            await record.delete()
+
+async def start_price_generation():
+    """启动价格生成任务"""
+    global _data_generation_task
+    
+    if _data_generation_task and not _data_generation_task.done():
+        print("价格生成任务已经在运行")
+        return
+    
+    _data_generation_task = asyncio.create_task(generate_real_time_price())
+    print("实时价格数据生成任务已启动")
+
+async def stop_price_generation():
+    """停止价格生成任务"""
+    global _data_generation_task
+    
+    if _data_generation_task and not _data_generation_task.done():
+        _data_generation_task.cancel()
+        try:
+            await _data_generation_task
+        except asyncio.CancelledError:
+            pass
+        print("实时价格数据生成任务已停止")
+    
+    _data_generation_task = None
 
 
 class User(Model):
